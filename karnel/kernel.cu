@@ -38,6 +38,14 @@ void Additive::initSynth_THX(int numSinusoid, int numSample, float* host_start_f
 	cudaDeviceSynchronize();
 }
 
+void Additive::endSynth_THX() {
+	cudaFree(dev_frequencies);
+	cudaFree(dev_buffer);
+	cudaFree(dev_tmp_buffer);
+	cudaFree(dev_gains);
+	cudaFree(dev_angle);
+	cudaFree(dev_target);
+}
 void Additive::endSynth() {
 	cudaFree(dev_buffer);
 	cudaFree(dev_frequencies);

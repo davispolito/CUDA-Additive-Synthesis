@@ -19,5 +19,6 @@ namespace Additive {
 	void initSynth_THX(int numSinusoid, int numSample, float* host_start_freq, float* host_end_freq,
 		float* host_angle, float*  host_gains, float slide);
 	void compute_sinusoid_hybrid(float* buffer, float * time);
+	void endSynth_THX();
 	
 }
