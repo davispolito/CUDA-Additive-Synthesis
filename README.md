@@ -1,14 +1,33 @@
-CUDA Character Recognition
+CUDA Additive Synthesis
 ======================
 
 **University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 2**
 
-* (TODO) YOUR NAME HERE
-  * (TODO) [LinkedIn](), [personal website](), [twitter](), etc.
-* Tested on: (TODO) Windows 22, i7-2222 @ 2.22GHz 22GB, GTX 222 222MB (Moore 2222 Lab)
+* Davis Polito
+* Tested on: Windows 10, i7-8750H @ 2.2GHz 16GB, GTX 1060
 
-### (TODO: Your README)
+# Intro to Additive Synthesis
+Additive synthesis is based off the concept that any wave form can be represented via a Fourier transform as a sum of individual sinewave and amplitudes. This can be seen in the simple graphs of harmonic content for square, saw, and triangle wave forms. 
+![Square](images/squareWave.png)
+![Saw](images/sawWave.png)
+![Tri](images/triWave.png)
+One of the bottle necks of this form of synthesis is a CPUs ability to compute sine waves in real time without latency. In *Savioja, Lauri & Välimäki, Vesa & Smith, Julius. (2010).* Real-time additive synthesis with one million sinusoids using a GPU. 128th Audio Engineering Society Convention 2010. 1. a method for computing additive synthesis on a gpu using parallel threads is espoused. In my project I was able to successfully implement the simple kernel. This kernel can compute over 20,000 sine waves at 32 samples per kernel. Greater testing must be done to determine ideal conditions. I was unable to get access to a spectrogram and other testing equipment in order to better understand the output of the program, but I hope to do so after break. 
 
-Include analysis, etc. (Remember, this is public, so don't put
-anything here that you don't want to share with the world.)
+## Real Time Audio Output and learning more about CMake than I ever really cared to
+
+In order to start this project I needed to find a way to output audio in real time. Rather than working directly with the drivers and wasting time in that domain I thought it would be easier to simply use an audio SDK I could find online. I settled on the STK from Stanford's Center for Computer Research in Music and Acoustics (CCRMA). What I didn't know is how much of a headache it would be to get this compiled using CMake and then integrating it with a cuda executable environment. For the sanity of those who come after me I have listed the exact steps needed to setup this environment.
+1. Download the RtAudio SDK (https://github.com/thestk/rtaudio)
+    * Run ```mkdir build; cd build```
+    * Run ```cmake --build . --target install --config Release```
+    * Now you have installed the library into your Program Files directory. You can include them in CMake files by using 'include_sub_directory(User/Program Files/RtAudio/include/)' and the library file by using add_library(User/Program Files/include/lib/rtaudio.lib)
+    * Building will cause an error complaining about missing rtaudio.dll. You now must take rtaudio.dll from the RtAudio/bin directory and put it in your build/Release directory. 
+    * Now you can finally run your program
+2. You probably want to add a CUDA kernel to your program now.. ha ha goodluck
+3. You'll quickly realize that no matter what you do everything you just did on Windows is in x86, but CUDA build in x64. Here is when you take to the issues tab of the audio SDK (https://github.com/thestk/rtaudio/issues/221)
+4. Here you will learn that you need not waste 15+ hours trying to work with building and installing and learning and questioning where CMakes gets off on being so damn confusing. 
+5. Here you will learn that if you simply include RtAudio.cpp, RtAudio.h and use WASAPI everything works. EVERYTHINGWORKS!!!!
+6. Sacrifice 1000 CPUs to the Jensen Huang.
+7. Begin Coding
+
+
 
