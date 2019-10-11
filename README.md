@@ -11,7 +11,46 @@ Additive synthesis is based off the concept that any wave form can be represente
 ![Square](images/squareWave.png)
 ![Saw](images/sawWave.png)
 ![Tri](images/triWave.png)
-One of the bottle necks of this form of synthesis is a CPUs ability to compute sine waves in real time without latency. In *Savioja, Lauri & Välimäki, Vesa & Smith, Julius. (2010).* Real-time additive synthesis with one million sinusoids using a GPU. 128th Audio Engineering Society Convention 2010. 1. a method for computing additive synthesis on a gpu using parallel threads is espoused. In my project I was able to successfully implement the simple kernel. This kernel can compute over 20,000 sine waves at 32 samples per kernel. Greater testing must be done to determine ideal conditions. I was unable to get access to a spectrogram and other testing equipment in order to better understand the output of the program, but I hope to do so after break. 
+One of the bottle necks of this form of synthesis is a CPUs ability to compute sine waves in real time without latency. In *Savioja, Lauri & Välimäki, Vesa & Smith, Julius. (2010).* Real-time additive synthesis with one million sinusoids using a GPU. 128th Audio Engineering Society Convention 2010. 1. a method for computing additive synthesis on a gpu using parallel threads is espoused. In my project I was able to successfully implement the simple and complex kernel. This kernel can compute over 20,000 sine waves at 32 samples per kernel. 
+
+
+## Additive Synthesis on the GPU vs. CPU
+
+Additive Synthesis on a CPU is very straightforward. Computation occurs in a nested for loop where the inner loop computes the sum of all the sinewaves at time *t*(represented as angle in radians). This can be naively parallelized by expanding that outer for loop into threads on a gpu kernel. This is done in the simple implementation with relative success. 
+![DataSimple](images/sinkernsimple.png)
+
+As you can see there is little utilization of the gpu and most of the time is spent waiting for process execution with no warps that can execute. This is because looping in a gpu kernel is never suggested. We would prefer to compute each individual sine wave at time *t* in seperate kernels as well as spread the computation of those samples across various blocks. We then sum those blocks individually. 
+![DataComplex](images/sinkernfast.png)
+
+This may be a more complicated explanation than the average person can understand so I present to you the execution speed data to better explain improvements. 
+
+The simple kernel has an average execution time of ~1 millisecond
+![DataSimple](images/sinkernsimpletiming.png)
+Whereas the fast kernel has an average execution time of less than half a millisecond. 
+![DataSimple](images/sinkernfastiming.png)
+
+### Planned Improvements
+
+- [ ] Real time addition of sinewaves
+    *   Dynamic Memory heap based memory allocation
+    *   Cons: 
+        * Must Add a host to Device Copy for every kernel invocation which will increase latency (i.e. must compute more samples per kernel invocation)
+- [ ] Bandpassed Modulation of SineWaves
+    *   Memory Coalescing to group frequency bands together
+- [ ] Port Code to Jetson Nano
+    *  Interaction will come via physical control
+- [ ] Optimization 
+- [ ] Interesting Ramping functions (tanh, logarithmic, custom)
+
+### How to Run Program and other useful controls to know
+Currently there are two different versions of the code that can be run. The simple kernel will compute NUM_SINE sine waves based on the filling algorithm used at line 160. This doesn't sound very good unless you specify a good number of sinewaves like 20 and the algorithm spaces out the sinewaves well enough. You can select the algorithm by uncommenting #define SIMPLE at the top of the code
+
+The other algorithm can be selected by commenting out the #define SIMPLE line. This algorithm attempts to reproduce the THX Deep Note sound utilizing a fill scheme developed from a CCRMA homework assignment by jmccarty. 
+
+SAMPLES_PER_THREAD and THREADS_PER_SAMPLE define important function of the compex kernel. SAMPLES_PER_THREAD defines how many steps of the function each THREAD is filling. THREADS_PER_SAMPLE defines the number of sinusoids that are used to compute each SAMPLE in the thread. The division of labor here is important and defines the speed of kernel execution. Optimal relationship has yet to be determined.
+
+These Program execution schemes will be changed as the code is developed. 
+
 
 ## Real Time Audio Output and learning more about CMake than I ever really cared to
 

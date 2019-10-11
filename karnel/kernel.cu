@@ -1,14 +1,33 @@
 #include "kernel.h"
 #include <math.h>
 #include <cmath>
+#include <stdio.h>
+#include <cuda.h>
+#include "kernel.h"
 #define M_PI 3.1415926535897931
-#define THREADS_PER_SAMPLE 10
+#define THREADS_PER_SAMPLE 16
 #define SAMPLES_PER_THREAD 1
 #define SAMPLING_FREQ 44100
-#define SIMPLE 0
+//#define SIMPLE 0
+#define checkCUDAErrorWithLine(msg) checkCUDAError(msg, __LINE__)
 float* dev_frequencies, *dev_buffer, *dev_tmp_buffer, *dev_gains, *dev_target, *dev_angle;
 float slideTime;
 int numSamples, numSinusoids;
+
+/**
+* Check for CUDA errors; print and exit if there was a problem.
+*/
+void checkCUDAError(const char *msg, int line = -1) {
+  cudaError_t err = cudaGetLastError();
+  if (cudaSuccess != err) {
+    if (line >= 0) {
+      fprintf(stderr, "Line %d: ", line);
+    }
+    fprintf(stderr, "Cuda error: %s: %s.\n", msg, cudaGetErrorString(err));
+    exit(EXIT_FAILURE);
+  }
+}
+
 
 void Additive::initSynth(int numSinusoid, int numSample, float* host_frequencies) {
 	
@@ -25,16 +44,25 @@ void Additive::initSynth_THX(int numSinusoid, int numSample, float* host_start_f
 	numSamples = numSample;
 	numSinusoids = numSinusoid;
 	slideTime = slide;
-	cudaMalloc((void**)dev_frequencies, numSinusoids * sizeof(float));
+	cudaMalloc((void**)&dev_frequencies, numSinusoids * sizeof(float));
+	checkCUDAErrorWithLine("dev_frequencies malloc failed");
 	cudaMemcpy(dev_frequencies, host_start_freq, numSinusoids * sizeof(float), cudaMemcpyHostToDevice);
+	checkCUDAErrorWithLine("dev_frequencies memcpy failed");
 	cudaMalloc((void**)&dev_buffer, numSamples * sizeof(float));
+	checkCUDAErrorWithLine("dev_buffer malloc failed");
 	cudaMalloc((void**)&dev_tmp_buffer, numSamples *THREADS_PER_SAMPLE* sizeof(float));
-	cudaMalloc((void**)dev_gains, numSinusoids * sizeof(float));
+	checkCUDAErrorWithLine("dev_tmp_buffer malloc failed");
+	cudaMalloc((void**)&dev_gains, numSinusoids * sizeof(float));
+	checkCUDAErrorWithLine("dev_gains malloc failed");
 	cudaMemcpy(dev_gains, host_gains, numSinusoids * sizeof(float), cudaMemcpyHostToDevice);
-	cudaMalloc((void**)dev_angle, numSinusoids * sizeof(float));
-	cudaMemcpy(dev_angle, host_angle, numSinusoids * sizeof(float), cudaMemcpyHostToDevice);
-	cudaMalloc((void**)dev_target, numSinusoids * sizeof(float));
+	checkCUDAErrorWithLine("dev_gains memcpy failed");
+	cudaMalloc((void**)&dev_angle, numSinusoids * sizeof(float));
+	checkCUDAErrorWithLine("dev_angle malloc failed");
+	//cudaMemcpy(dev_angle, host_angle, numSinusoids * sizeof(float), cudaMemcpyHostToDevice);
+	cudaMalloc((void**)&dev_target, numSinusoids * sizeof(float));
+	checkCUDAErrorWithLine("dev_target malloc failed");
 	cudaMemcpy(dev_target, host_end_freq, numSinusoids * sizeof(float), cudaMemcpyHostToDevice);
+	checkCUDAErrorWithLine("target frequencies copy failed");
 	cudaDeviceSynchronize();
 }
 
@@ -92,7 +120,7 @@ __global__ void sin_kernel_fast(float * buffer, float * frequencies, float* targ
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if (idx < numSamples * THREADS_PER_SAMPLE) {
-		int maxSinePerBlock = (numSinusoids * THREADS_PER_SAMPLE - 1) / THREADS_PER_SAMPLE;
+		int maxSinePerBlock = (numSinusoids + THREADS_PER_SAMPLE - 1) / THREADS_PER_SAMPLE;
 		int sinBlock = idx / numThreadsPerBlock;
 		int sampleIdx = idx % numThreadsPerBlock;
 		float val[SAMPLES_PER_THREAD];
@@ -103,13 +131,13 @@ __global__ void sin_kernel_fast(float * buffer, float * frequencies, float* targ
 	    int firstSine = sinBlock * maxSinePerBlock;
 		int lastSine = imin(numSinusoids, firstSine + maxSinePerBlock);
 		for (int i = firstSine; i < lastSine; i++) {
-			angleStart = angles[i]; 
+			angleStart = 0; 
 			freq0 = frequencies[i];
 			freq1 = targetFrequencies[i];
 			gain = gains[i];
 			for (int j = 0; j < SAMPLES_PER_THREAD; j++) {
 				angle = ramp_kern(time + (sampleIdx * SAMPLES_PER_THREAD + j) / SAMPLING_FREQ, slideTime, freq0, freq1);
-				val[j] += __sinf(angleStart + angle) * gain;
+				val[j] += __sinf(angleStart + angle) * gain / numSinusoids;
 			}
 		}
 		for (int i = 0; i < SAMPLES_PER_THREAD; i++) {
@@ -135,15 +163,18 @@ __global__ void sum_blocks(float* tmp_buffer, float* buffer, int numSamples) {
 }
 
 void Additive::compute_sinusoid_hybrid(float* buffer, float * time){
-	int threadsPerBlock = 80; 
+	int threadsPerBlock = 256; 
 	int numThreadsPerBlock = numSamples / SAMPLES_PER_THREAD;
 	int numThreads = THREADS_PER_SAMPLE * numThreadsPerBlock;
 	int blocksPerGrid = (numThreads + threadsPerBlock - 1) / threadsPerBlock;
 
 	
 	sin_kernel_fast <<<blocksPerGrid, threadsPerBlock >>>(dev_tmp_buffer, dev_frequencies, dev_target, dev_angle, dev_gains, numThreadsPerBlock, numSinusoids, *time, slideTime, numSamples);
+	checkCUDAErrorWithLine("sin_kernel_fast failed");
 	blocksPerGrid = (numSamples + threadsPerBlock - 1) / threadsPerBlock;
-	sum_blocks <<<blocksPerGrid, threadsPerBlock >> >(dev_tmp_buffer, buffer, numSamples);
+	sum_blocks <<<blocksPerGrid, threadsPerBlock >> >(dev_tmp_buffer, dev_buffer, numSamples);
+	checkCUDAErrorWithLine("sum_blocks failed");
+	cudaMemcpy(buffer, dev_buffer, numSamples * sizeof(float), cudaMemcpyDeviceToHost);
 }
 
 

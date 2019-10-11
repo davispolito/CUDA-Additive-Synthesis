@@ -8,7 +8,7 @@
 #define _PI 3.1415926535897931
 #define NUM_SAMPLES 16
 #define SAMPLING_FREQUENCY 44100
-#define SIMPLE 1
+//#define SIMPLE 1
 // Two-channel sawtooth wave generator.
 int saw( void *outputBuffer, void *inputBuffer, unsigned int nBufferFrames,
          double streamTime, RtAudioStreamStatus status, void *userData )
@@ -71,7 +71,7 @@ int additive_gpu(void *outputBuffer, void* inputBuffer, unsigned int nBufferFram
 	
 	Additive::compute_sinusoid_gpu_simple((float*)outputBuffer, angle);
 	angle+= 2.0f * _PI * NUM_SAMPLES / 44100.f;
-
+	angle = fmod(angle, 44100.f);
 	return 0;
 }
 
@@ -81,7 +81,8 @@ int additive_gpu_complex(void *outputBuffer, void* inputBuffer, unsigned int nBu
 
     if ( status ) std::cout << "Stream underflow detected!" << std::endl;
     Additive::compute_sinusoid_hybrid((float*)outputBuffer, &time);
-	time += 2.0f * _PI * NUM_SAMPLES / 44100.f;
+	time += NUM_SAMPLES / 44100.f;
+//	time = fmod(time, 44100.f);
 	return 0;
 }
 
@@ -176,7 +177,8 @@ int main()
   float freqs_end[NUM_SINES];
   float angles[NUM_SINES];
   float gains[NUM_SINES];
-  float slideTime = SAMPLING_FREQUENCY * END_SECS* 0.75;
+  //float slideTime = SAMPLING_FREQUENCY * END_SECS* 0.75;
+  float slideTime = END_SECS * 0.75;
   fill_THX(freqs_start, freqs_end, angles, gains, NUM_SINES);
   Additive::initSynth_THX(NUM_SINES, bufferFrames, freqs_start, freqs_end, angles, gains, slideTime);
   try {
