@@ -4,7 +4,7 @@
 #include <cstdlib>
 #include "Sine.h"
 //Sine *global_sine[100];
-#define NUM_SINES 10000
+#define NUM_SINES 1000
 #define _PI 3.1415926535897931
 #define NUM_SAMPLES 16
 #define SAMPLING_FREQUENCY 44100
@@ -120,15 +120,19 @@ void fill_THX(float* freq_start, float* freq_end, float* angle, float *gains, in
     {   
 		if (i <= (int)NUM_SINES*0.05) {
 			gains[i] = 0.3;
+			//gains[i] = 0.03;
 		}
 		else if (freq_end[i] < 2.0*FUNDFREQ) {
 			gains[i] = 4.0f;
+			//gains[i] = 0.4f;
 		}	
 		else if (freq_end[i] < 6.0*FUNDFREQ) {
 			gains[i] = 2.0f;
+			//gains[i] = 0.2f;
 		} 	
 		else {
 			gains[i] = 1.0;
+			//gains[i] = 0.1f;
 		}
 
     }

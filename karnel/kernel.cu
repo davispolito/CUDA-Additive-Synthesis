@@ -5,6 +5,7 @@
 #include <cuda.h>
 #include "kernel.h"
 #define M_PI 3.1415926535897931
+//divide
 #define THREADS_PER_SAMPLE 16
 #define SAMPLES_PER_THREAD 1
 #define SAMPLING_FREQ 44100
@@ -102,15 +103,15 @@ void Additive::compute_sinusoid_gpu_simple(float* buffer, float angle) {
 }
 
 __device__ float ramp_kern(float currentTime, float slideTime, float f0, float f1){
-	float angle;
-	if (currentTime < slideTime){
-	     float speed = (f1 - f0) / slideTime;
-		 angle = currentTime * (f0 + speed * currentTime / 2.0f);
+	float integral;
+	if (currentTime < slideTime) {
+		float k = (f1-f0) / slideTime;
+		integral = currentTime * (f0 + k * currentTime / 2.0f);
 	} else {
-	     angle = f0 * slideTime + (f1 - f0) * slideTime / 2.0f;
-         angle += (currentTime - slideTime) * f1;
+		integral = f0 * slideTime + (f1 - f0) * slideTime / 2.0f;
+		integral += (currentTime - slideTime) * f1;
 	}
-	return angle * 2.0f * M_PI;
+	return integral * 2.0f * M_PI;
 }
 
 #define imin( a, b ) ( ((a) < (b)) ? (a) : (b) )
@@ -120,9 +121,10 @@ __global__ void sin_kernel_fast(float * buffer, float * frequencies, float* targ
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if (idx < numSamples * THREADS_PER_SAMPLE) {
+		//determine how many sineWaves are to be computed in each thread based on how many threads it takes to compute a sample
 		int maxSinePerBlock = (numSinusoids + THREADS_PER_SAMPLE - 1) / THREADS_PER_SAMPLE;
 		int sinBlock = idx / numThreadsPerBlock;
-		int sampleIdx = idx % numThreadsPerBlock;
+		int sampleIdx = idx - sinBlock * numThreadsPerBlock; // modulo function but GPUs are trash at modulo so don't use it
 		float val[SAMPLES_PER_THREAD];
 		for (int j = 0; j < SAMPLES_PER_THREAD; j++) {
 			val[j] = 0.0f;
@@ -130,6 +132,7 @@ __global__ void sin_kernel_fast(float * buffer, float * frequencies, float* targ
 	    float gain, freq0, freq1, angle, angleStart;
 	    int firstSine = sinBlock * maxSinePerBlock;
 		int lastSine = imin(numSinusoids, firstSine + maxSinePerBlock);
+		//compute samples for maxSinePerBlock
 		for (int i = firstSine; i < lastSine; i++) {
 			angleStart = 0; 
 			freq0 = frequencies[i];
