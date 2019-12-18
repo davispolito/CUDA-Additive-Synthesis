@@ -14,7 +14,7 @@ Additive synthesis is based off the concept that any wave form can be represente
 One of the bottle necks of this form of synthesis is a CPUs ability to compute sine waves in real time without latency. In *Savioja, Lauri & Välimäki, Vesa & Smith, Julius. (2010).* Real-time additive synthesis with one million sinusoids using a GPU. 128th Audio Engineering Society Convention 2010. 1. a method for computing additive synthesis on a gpu using parallel threads is espoused. In my project I was able to successfully implement the simple and complex kernel. This kernel can compute over 20,000 sine waves at 32 samples per kernel. 
 
 
-## Additive Synthesis on the GPU vs. CPU
+## Additive Synthesis on the GPU 
 
 Additive Synthesis on a CPU is very straightforward. Computation occurs in a nested for loop where the inner loop computes the sum of all the sinewaves at time *t*(represented as angle in radians). This can be naively parallelized by expanding that outer for loop into threads on a gpu kernel. This is done in the simple implementation with relative success. 
 ![DataSimple](images/sinkernsimple.png)
@@ -22,7 +22,7 @@ Additive Synthesis on a CPU is very straightforward. Computation occurs in a nes
 As you can see there is little utilization of the gpu and most of the time is spent waiting for process execution with no warps that can execute. This is because looping in a gpu kernel is never suggested. We would prefer to compute each individual sine wave at time *t* in seperate kernels as well as spread the computation of those samples across various blocks. We then sum those blocks individually. 
 ![DataComplex](images/sinkernfast.png)
 
-This may be a more complicated explanation than the average person can understand so I present to you the execution speed data to better explain improvements. 
+I also present the execution speed data to better explain improvements. 
 
 The simple kernel has an average execution time of ~1 millisecond
 ![DataSimple](images/sinkernsimpletiming.png)
